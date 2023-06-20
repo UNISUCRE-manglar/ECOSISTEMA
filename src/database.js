@@ -10,6 +10,7 @@ const MONGODB_URI = 'mongodb+srv://admin:PPfVuUm07Qrw82ME@clusterz.5xtzvvc.mongo
 
 mongoose
   .connect(MONGODB_URI, {
+    keepAlive: true,
     useNewUrlParser: true,
     useUnifiedTopology: true 
   })
