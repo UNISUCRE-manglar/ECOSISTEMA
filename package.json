@@ -1,8 +1,8 @@
 {
-  "name": "Manglar",
+  "name": "Campusmap",
   "version": "2.0.0",
   "description": "Plantilla que posee menú lateral, login de usuario, conexión a MongoDB",
-  "main": "src/index.js",
+  "main": "index.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js"
