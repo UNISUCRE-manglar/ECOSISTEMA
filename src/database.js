@@ -14,7 +14,7 @@ mongoose
     useUnifiedTopology: true 
   })
   .then(db => console.log("conexion con mongo: on"))
-  .catch(err => console.error(err));
+  .catch(err => console.error(error en mongo paphu));
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
