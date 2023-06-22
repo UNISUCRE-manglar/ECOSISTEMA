@@ -7,6 +7,6 @@ const { renderIndex, renderAbout, renderHome, renderCampusmap } = require("../co
 router.get("/", renderIndex);
 router.get("/about", renderAbout);
 router.get("/home", renderHome);
-router.get("/campusmap", renderCampusmap);
+router.get("/Campusmap", renderCampusmap);
 
 module.exports = router;
