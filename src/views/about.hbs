@@ -4,138 +4,150 @@
   <meta charset="UTF-8">
   <title>Mapa con Marcas</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" />
- <style>
-   
-    #map-template { height: 600px; width: 800px; right: 225px; }
-    #container { display: flex; }
-    #map-container { flex: 1; }
-    #table-container { flex: 1; }
-  
-</style>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.5.1/dist/chart.min.js"></script>
+  <style>
+    #map { height: 400px; }
+  </style>
 </head>
 <body>
   
-  <div id="container">
-    <div id="map-container">
-      <div id="map-template"></div>
-      <form id="coordinateForm">
-        <label for="latitude">Latitud:</label>
-        <input type="text" id="latitude" required>
-        <label for="longitude">Longitud:</label>
-        <input type="text" id="longitude" required>
-        <label for="species">Especie:</label>
-        <input type="text" id="species" required>
-        <button type="submit" id="saveButton">Guardar</button>
-        <button type="button" id="deleteButton">Borrar</button>
-      </form>
-    </div>
-    <div id="table-container">
-      <table id="markerTable">
-        <thead>
-          <tr>
-            <th>Especie</th>
-            <th>Cantidad</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
+  <h1>Mapa con Marcas</h1>
+  
+  <div>
+    <label for="latitude">Latitud:</label>
+    <input type="text" id="latitude">
+    <label for="longitude">Longitud:</label>
+    <input type="text" id="longitude">
+    <label for="species">Especie:</label>
+    <input type="text" id="species">
+    <button id="addButton">Agregar Marca</button>
+    <button id="clearButton">Borrar Marcas</button>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
-  <script>
-    // Crea el mapa
-    const map = L.map('map-template').setView([9.315443327903317, -75.38846389797254], 18.14);
+  <div id="map"></div>
+  
+  <h2 id="counter">Número de Árboles Registrados en el Campus: 0</h2>
+  
+  <canvas id="pieChartCanvas"></canvas>
 
+  <script>
+    // Crear el mapa
+    const map = L.map('map').setView([9.316243821216903, -75.38878550707672], 16);
+
+    // Agregar el mapa base de OpenStreetMap
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    // Objeto para realizar el seguimiento de la cantidad de especies
-    let speciesCount = {};
-
     // Capa de marcadores para agregar las marcas al mapa
     const markersLayer = L.layerGroup().addTo(map);
 
-    // Función para agregar una marca al mapa
-    function addMarkerToMap(latitude, longitude) {
-      const marker = L.marker([latitude, longitude]).addTo(markersLayer);
-      return marker;
-    }
+    // Objeto para realizar el seguimiento de la cantidad de especies
+    let speciesCount = {};
+
+    // Variable para almacenar la instancia del gráfico de pastel
+    let pieChart;
 
     // Cargar las marcas guardadas desde el almacenamiento local
     function loadMarkersFromStorage() {
       const markers = JSON.parse(localStorage.getItem('markers')) || [];
 
       markers.forEach(function (markerData) {
-        const marker = addMarkerToMap(markerData.latitude, markerData.longitude);
-
-        // Actualizar el contador de especies
-        speciesCount[markerData.species] = (speciesCount[markerData.species] || 0) + 1;
-
-        // Agregar evento de clic al marcador para resaltarlo en la tabla
-        marker.on('click', function () {
-          highlightTableRow(markerData.species);
-        });
+        const { latitude, longitude, species } = markerData;
+        addMarker(latitude, longitude, species);
       });
-
-      // Actualizar la tabla de especies
-      updateSpeciesTable();
     }
 
     // Guardar una marca en el almacenamiento local
     function saveMarkerToStorage(latitude, longitude, species) {
-      const markerData = { latitude: latitude, longitude: longitude, species: species };
+      const markerData = { latitude, longitude, species };
       const markers = JSON.parse(localStorage.getItem('markers')) || [];
 
       markers.push(markerData);
       localStorage.setItem('markers', JSON.stringify(markers));
     }
 
-    // Eliminar una marca del almacenamiento local
-    function deleteMarkerFromStorage(latitude, longitude, species) {
-      const markers = JSON.parse(localStorage.getItem('markers')) || [];
+    // Función para agregar una marca al mapa
+    function addMarker(latitude, longitude, species) {
+      const marker = L.marker([latitude, longitude]).addTo(markersLayer);
 
-      // Filtrar las marcas para eliminar la que coincide con las coordenadas y especie proporcionadas
-      const updatedMarkers = markers.filter(function (markerData) {
-        return !(markerData.latitude === latitude && markerData.longitude === longitude && markerData.species === species);
-      });
+      // Actualizar el contador de especies
+      speciesCount[species] = (speciesCount[species] || 0) + 1;
 
-      localStorage.setItem('markers', JSON.stringify(updatedMarkers));
+      // Actualizar la tabla de especies
+      updatePieChart();
+
+      // Actualizar el contador de marcas
+      updateCounter();
+
+      // Guardar la marca en el almacenamiento local
+      saveMarkerToStorage(latitude, longitude, species);
     }
 
-    // Actualizar la tabla con los datos de las especies
-    function updateSpeciesTable() {
-      const tableBody = document.querySelector('#markerTable tbody');
-      tableBody.innerHTML = '';
+    // Eliminar todas las marcas del mapa y del almacenamiento local
+    function clearMarkers() {
+      markersLayer.clearLayers();
+      localStorage.removeItem('markers');
+      speciesCount = {};
+      updatePieChart();
+      updateCounter();
+    }
 
-      for (const species in speciesCount) {
-        const tableRow = document.createElement('tr');
-        const speciesCell = document.createElement('td');
-        const countCell = document.createElement('td');
+    // Actualizar el gráfico de pastel
+    function updatePieChart() {
+      const canvas = document.getElementById('pieChartCanvas');
 
-        speciesCell.textContent = species;
-        countCell.textContent = speciesCount[species];
-
-        tableRow.appendChild(speciesCell);
-        tableRow.appendChild(countCell);
-
-        tableBody.appendChild(tableRow);
+      if (pieChart) {
+        pieChart.destroy();
       }
+
+      const species = Object.keys(speciesCount);
+      const counts = Object.values(speciesCount);
+
+      pieChart = new Chart(canvas, {
+        type: 'pie',
+        data: {
+          labels: species,
+          datasets: [{
+            data: counts,
+            backgroundColor: getRandomColors(species.length),
+          }],
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'bottom',
+            },
+          },
+        },
+      });
     }
 
-    // Resaltar la fila de especie en la tabla
-    function highlightTableRow(species) {
-      const tableRows = document.querySelectorAll('#markerTable tbody tr');
+    // Generar colores aleatorios para los segmentos del gráfico
+    function getRandomColors(count) {
+      const colors = [];
 
-      tableRows.forEach(function (row) {
-        if (row.cells[0].textContent === species) {
-          row.classList.add('highlight');
-        } else {
-          row.classList.remove('highlight');
-        }
-      });
+      for (let i = 0; i < count; i++) {
+        const color = `rgba(${getRandomValue(0, 255)}, ${getRandomValue(0, 255)}, ${getRandomValue(0, 255)}, 0.7)`;
+        colors.push(color);
+      }
+
+      return colors;
+    }
+
+    // Generar un valor aleatorio en un rango dado
+    function getRandomValue(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    // Función para actualizar el contador de marcas
+    function updateCounter() {
+      const counter = document.getElementById('counter');
+      const totalCount = Object.values(speciesCount).reduce((total, count) => total + count, 0);
+      counter.textContent = `Número de Árboles Registrados en el Campus: ${totalCount}`;
     }
 
     // Manejar el evento de carga de la página
@@ -143,56 +155,30 @@
       loadMarkersFromStorage();
     });
 
-    // Manejar el envío del formulario
-    document.getElementById('coordinateForm').addEventListener('submit', function (event) {
-      event.preventDefault(); // Evitar la recarga de página
-
-      // Obtener los valores de latitud, longitud y especie del formulario
+    // Manejar el evento de clic en el botón "Agregar Marca"
+    document.getElementById('addButton').addEventListener('click', function () {
       const latitude = parseFloat(document.getElementById('latitude').value);
       const longitude = parseFloat(document.getElementById('longitude').value);
       const species = document.getElementById('species').value;
 
-      // Crear una marca en el mapa con las coordenadas proporcionadas
-      const marker = addMarkerToMap(latitude, longitude);
+      if (isNaN(latitude) || isNaN(longitude) || species === '') {
+        alert('Por favor, ingresa valores válidos para latitud, longitud y especie.');
+        return;
+      }
 
-      // Guardar la marca en el almacenamiento local
-      saveMarkerToStorage(latitude, longitude, species);
-
-      // Actualizar el contador de especies
-      speciesCount[species] = (speciesCount[species] || 0) + 1;
-
-      // Agregar evento de clic al marcador para resaltarlo en la tabla
-      marker.on('click', function () {
-        highlightTableRow(species);
-      });
-
-      // Actualizar la tabla de especies
-      updateSpeciesTable();
+      addMarker(latitude, longitude, species);
 
       // Limpiar los campos del formulario
       document.getElementById('latitude').value = '';
       document.getElementById('longitude').value = '';
       document.getElementById('species').value = '';
-
-      console.log('Marca guardada:', { latitude, longitude, species });
     });
 
-    // Manejar el evento del botón "Borrar"
-    document.getElementById('deleteButton').addEventListener('click', function (event) {
-      event.preventDefault(); // Evitar la recarga de página
-
-      // Eliminar todas las marcas del mapa
-      markersLayer.clearLayers();
-
-      // Eliminar los datos guardados localmente, reiniciar el contador de especies y limpiar la tabla
-      localStorage.removeItem('markers');
-      speciesCount = {};
-      updateSpeciesTable();
-
-      console.log('Marcas eliminadas');
+    // Manejar el evento de clic en el botón "Borrar Marcas"
+    document.getElementById('clearButton').addEventListener('click', function () {
+      clearMarkers();
     });
   </script>
-  
 </body>
 </html>
 
