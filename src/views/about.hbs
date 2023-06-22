@@ -4,8 +4,6 @@
   <meta charset="UTF-8">
   <title>Mapa con Marcas</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" />
-  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.5.1/dist/chart.min.js"></script>
   <style>
     #map { height: 400px; }
   </style>
@@ -29,8 +27,10 @@
   
   <h2 id="counter">Número de Árboles Registrados en el Campus: 0</h2>
   
-  <canvas id="pieChartCanvas"></canvas>
+  <div id="chartContainer" style="height: 300px; width: 100%;"></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
+  <script src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>
   <script>
     // Crear el mapa
     const map = L.map('map').setView([9.316243821216903, -75.38878550707672], 16);
@@ -47,16 +47,13 @@
     // Objeto para realizar el seguimiento de la cantidad de especies
     let speciesCount = {};
 
-    // Variable para almacenar la instancia del gráfico de pastel
-    let pieChart;
-
     // Cargar las marcas guardadas desde el almacenamiento local
     function loadMarkersFromStorage() {
       const markers = JSON.parse(localStorage.getItem('markers')) || [];
 
       markers.forEach(function (markerData) {
         const { latitude, longitude, species } = markerData;
-        addMarker(latitude, longitude, species);
+        addMarker(latitude, longitude, species, false); // Agregar el último argumento "false" para evitar el guardado adicional
       });
     }
 
@@ -70,20 +67,27 @@
     }
 
     // Función para agregar una marca al mapa
-    function addMarker(latitude, longitude, species) {
+    function addMarker(latitude, longitude, species, saveToStorage = true) { // Agregar un parámetro "saveToStorage" con valor predeterminado "true"
       const marker = L.marker([latitude, longitude]).addTo(markersLayer);
 
       // Actualizar el contador de especies
       speciesCount[species] = (speciesCount[species] || 0) + 1;
 
-      // Actualizar la tabla de especies
+      // Actualizar el gráfico de especies
       updatePieChart();
 
       // Actualizar el contador de marcas
       updateCounter();
 
-      // Guardar la marca en el almacenamiento local
-      saveMarkerToStorage(latitude, longitude, species);
+      // Resaltar la fila de especie en la tabla al hacer clic en el marcador
+      marker.on('click', function () {
+        highlightTableRow(species);
+      });
+
+      // Guardar la marca en el almacenamiento local si es necesario
+      if (saveToStorage) {
+        saveMarkerToStorage(latitude, longitude, species);
+      }
     }
 
     // Eliminar todas las marcas del mapa y del almacenamiento local
@@ -95,52 +99,41 @@
       updateCounter();
     }
 
-    // Actualizar el gráfico de pastel
+    // Actualizar el gráfico de especies
     function updatePieChart() {
-      const canvas = document.getElementById('pieChartCanvas');
-
-      if (pieChart) {
-        pieChart.destroy();
+      const chartData = [];
+      for (const species in speciesCount) {
+        chartData.push({ label: species, y: speciesCount[species] });
       }
 
-      const species = Object.keys(speciesCount);
-      const counts = Object.values(speciesCount);
-
-      pieChart = new Chart(canvas, {
-        type: 'pie',
-        data: {
-          labels: species,
-          datasets: [{
-            data: counts,
-            backgroundColor: getRandomColors(species.length),
-          }],
+      const chart = new CanvasJS.Chart('chartContainer', {
+        animationEnabled: true,
+        title: {
+          text: 'Distribución de Especies de Árboles'
         },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: {
-              position: 'bottom',
-            },
-          },
-        },
+        data: [{
+          type: 'pie',
+          showInLegend: true,
+          legendText: '{label}',
+          indexLabel: '{label} - {y}',
+          dataPoints: chartData
+        }]
       });
+
+      chart.render();
     }
 
-    // Generar colores aleatorios para los segmentos del gráfico
-    function getRandomColors(count) {
-      const colors = [];
+    // Función para resaltar la fila de especie en la tabla
+    function highlightTableRow(species) {
+      const tableRows = document.querySelectorAll('#speciesTable tbody tr');
 
-      for (let i = 0; i < count; i++) {
-        const color = `rgba(${getRandomValue(0, 255)}, ${getRandomValue(0, 255)}, ${getRandomValue(0, 255)}, 0.7)`;
-        colors.push(color);
-      }
-
-      return colors;
-    }
-
-    // Generar un valor aleatorio en un rango dado
-    function getRandomValue(min, max) {
-      return Math.floor(Math.random() * (max - min + 1)) + min;
+      tableRows.forEach(function (row) {
+        if (row.cells[0].textContent === species) {
+          row.classList.add('highlight');
+        } else {
+          row.classList.remove('highlight');
+        }
+      });
     }
 
     // Función para actualizar el contador de marcas
@@ -153,6 +146,7 @@
     // Manejar el evento de carga de la página
     window.addEventListener('load', function () {
       loadMarkersFromStorage();
+      updatePieChart();
     });
 
     // Manejar el evento de clic en el botón "Agregar Marca"
